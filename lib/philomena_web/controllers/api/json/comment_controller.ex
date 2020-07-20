@@ -45,6 +45,11 @@ defmodule PhilomenaWeb.Api.Json.CommentController do
         |> put_status(:not_found)
         |> text("")
 
+      not Canada.Can.can?(conn.assigns.current_user, :create_comment, orig_comment.image) ->
+        conn
+        |> put_status(:forbidden)
+        |> text("")
+
       not Canada.Can.can?(conn.assigns.current_user, :show, orig_comment) ->
         conn
         |> put_status(:forbidden)

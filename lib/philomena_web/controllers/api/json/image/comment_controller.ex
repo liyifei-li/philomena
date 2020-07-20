@@ -8,8 +8,8 @@ defmodule PhilomenaWeb.Api.Json.Image.CommentController do
   alias Philomena.Repo
   import Ecto.Query
 
-  plug PhilomenaWeb.ApiRequireAuthorizationPlug when action in [:create]
-  plug PhilomenaWeb.UserAttributionPlug when action in [:create]
+  plug PhilomenaWeb.ApiRequireAuthorizationPlug when action in [:create, :update]
+  plug PhilomenaWeb.UserAttributionPlug when action in [:create, :update]
 
   def show(conn, %{"image_id" => image_id, "id" => id}) do
     comment =
@@ -102,6 +102,62 @@ defmodule PhilomenaWeb.Api.Json.Image.CommentController do
             |> render("show.json", comment: comment, current_user: conn.assigns.current_user)
 
           {:error, :comment, changeset, _} ->
+            conn
+            |> put_status(:bad_request)
+            |> put_view(PhilomenaWeb.Api.Json.CommentView)
+            |> render("error.json", changeset: changeset)
+        end
+    end
+  end
+
+  def update(conn, %{"comment" => comment_params, "image_id" => image_id, "id" => comment_id}) do
+    orig_comment =
+      Comment
+      |> where(id: ^comment_id)
+      |> where(image_id: ^image_id)
+      |> preload([:image, :user])
+      |> Repo.one()
+
+    cond do
+      is_nil(orig_comment) or orig_comment.destroyed_content ->
+        conn
+        |> put_status(:not_found)
+        |> text("")
+
+      not Canada.Can.can?(conn.assigns.current_user, :create_comment, orig_comment.image) ->
+        conn
+        |> put_status(:forbidden)
+        |> text("")
+
+      not Canada.Can.can?(conn.assigns.current_user, :show, orig_comment) ->
+        conn
+        |> put_status(:forbidden)
+        |> text("")
+
+      not Canada.Can.can?(conn.assigns.current_user, :update, orig_comment) ->
+        conn
+        |> put_status(:forbidden)
+        |> text("")
+
+      true ->
+        case Comments.update_comment(orig_comment, conn.assigns.current_user, comment_params) do
+          {:ok, %{comment: comment}} ->
+            PhilomenaWeb.Endpoint.broadcast!(
+              "firehose",
+              "comment:update",
+              PhilomenaWeb.Api.Json.CommentView.render("show.json", %{
+                comment: comment,
+                current_user: conn.assigns.current_user
+              })
+            )
+
+            Comments.reindex_comment(comment)
+
+            conn
+            |> put_view(PhilomenaWeb.Api.Json.CommentView)
+            |> render("show.json", comment: comment, current_user: conn.assigns.current_user)
+
+          {:error, :comment, changeset, _changes} ->
             conn
             |> put_status(:bad_request)
             |> put_view(PhilomenaWeb.Api.Json.CommentView)

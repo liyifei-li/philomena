@@ -112,7 +112,7 @@ defmodule PhilomenaWeb.Router do
     end
 
     resources "/images", ImageController, only: [:show, :create] do
-      resources "/comments", Image.CommentController, only: [:index, :create]
+      resources "/comments", Image.CommentController, only: [:show, :index, :create, :update]
     end
 
     scope "/search", Search, as: :search do
@@ -129,7 +129,7 @@ defmodule PhilomenaWeb.Router do
 
     resources "/oembed", OembedController, only: [:index]
     resources "/tags", TagController, only: [:show]
-    resources "/comments", CommentController, only: [:show]
+    resources "/comments", CommentController, only: [:show, :update]
     resources "/posts", PostController, only: [:show]
     resources "/profiles", ProfileController, only: [:show]
 
